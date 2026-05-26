@@ -1,0 +1,82 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: runtime
+    container_name: liqahi-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?APP_KEY is required (run: php artisan key:generate --show)}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-liqahi}
+      DB_USERNAME: ${DB_USERNAME:-liqahi}
+      DB_PASSWORD: ${DB_PASSWORD:-liqahi}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@liqahi.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      # Set to true when serving over HTTPS (e.g. behind a TLS-terminating proxy).
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
+    volumes:
+      - app-storage:/var/www/html/storage
+    networks: [liqahi]
+
+  nginx:
+    image: nginx:alpine
+    container_name: liqahi-nginx
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "8000:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [liqahi]
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: liqahi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-liqahi}
+      POSTGRES_USER: ${DB_USERNAME:-liqahi}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-liqahi}
+    volumes:
+      - liqahi-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-liqahi} -d ${DB_DATABASE:-liqahi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [liqahi]
+
+  redis:
+    image: redis:7-alpine
+    container_name: liqahi-redis
+    restart: unless-stopped
+    volumes:
+      - liqahi-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [liqahi]
+
+volumes:
+  liqahi-pgdata:
+  liqahi-redisdata:
+  app-storage:
+
+networks:
+  liqahi:
+    driver: bridge
