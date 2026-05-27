@@ -33,10 +33,17 @@ RUN composer dump-autoload --optimize --classmap-authoritative \
 # ---------- runtime stage ----------
 FROM base AS runtime
 
+RUN apk add --no-cache nginx supervisor \
+    && mkdir -p /run/nginx
+
 COPY --from=build /var/www/html /var/www/html
+COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
+COPY docker/supervisor/supervisord.conf /etc/supervisord.conf
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && chmod +x /usr/local/bin/entrypoint.sh
 
-USER www-data
-EXPOSE 9000
-CMD ["php-fpm"]
+EXPOSE 80
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
