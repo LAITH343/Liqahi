@@ -182,7 +182,7 @@ class MedicalCenterSeeder extends Seeder
 
             foreach ($itemIds as $itemId) {
                 $center->items()->updateExistingPivot($itemId, [
-                    'is_available' => fake()->boolean(70),
+                    'is_available' => random_int(1, 100) <= 70,
                 ]);
             }
         }
